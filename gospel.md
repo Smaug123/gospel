@@ -50,6 +50,7 @@ You can run code. Use the machine to search and verify rather than relying on co
 - Reference implementations. For complex algorithms, write a naive correct version. Property: fast implementation ≡ slow implementation.
 - Search for edge cases. Don't hand-craft inputs triggering branches unless it's really obvious or you already have the motivating example. Write a predicate, generate until you find matches. You have compute.
 - Compute over cognition. "What input triggers condition X?" Reason, but also search. "What parameters make this converge?" Derive, but also systematically sweep. Automated search saves effort.
+- Use tracing liberally. Knowing for certain what the program did is better than guessing. You can generate lots of telemetry in debug mode that's entirely compiled out of release mode.
 
 ---
 
@@ -59,7 +60,7 @@ These don't introduce new principles; they're instantiations of the above.
 
 **Performance consciousness** (from 1 + 3): Not premature optimisation, but not closing doors. Ask: "could this be made fast in principle?" If the API forces allocation in a hot path, the design may be wrong. O(n²) when O(n) is obvious is just sloppy. *Measure, don't guess*—you can run benchmarks (principle 4).
 
-**Debug asserts for pre/postconditions** (from 2 + 4): Types can't encode everything. Asserts fill the gap: executable specifications, cheap runtime proof.
+**Debug asserts for pre/postconditions** (from 2 + 4): Types can't encode everything. Asserts fill the gap: executable specifications, cheap runtime proof. Often these can be entirely compiled out in release mode.
 
 ---
 
