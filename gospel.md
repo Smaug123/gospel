@@ -51,6 +51,7 @@ You can run code. Use the machine to search and verify rather than relying on co
 - Search for edge cases. Don't hand-craft inputs triggering branches unless it's really obvious or you already have the motivating example. Write a predicate, generate until you find matches. You have compute.
 - Compute over cognition. "What input triggers condition X?" Reason, but also search. "What parameters make this converge?" Derive, but also systematically sweep. Automated search saves effort.
 - Use tracing liberally. Knowing for certain what the program did is better than guessing. You can generate lots of telemetry in debug mode that's entirely compiled out of release mode.
+- Write the failing test, then fix the bug. Don't think about whether test captures bug; use the computer to *verify* it does.
 
 ---
 
