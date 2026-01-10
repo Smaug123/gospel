@@ -46,12 +46,13 @@ The platonic ideal: primitives that correspond to actual mathematical objects. W
 You can run code. Use the machine to search and verify rather than relying on complex human reasoning.
 
 **Therefore:**
-- Property-based testing over example-based. Individual cases prove little. Find the invariant: "for all valid inputs, P holds." Generate thousands of cases.
+- Property-based testing over example-based. Individual cases prove little. Find the invariant: "for all valid inputs, P holds." Generate thousands of cases. Always use the property-based-testing skill, for much more advice.
 - Reference implementations. For complex algorithms, write a naive correct version. Property: fast implementation ≡ slow implementation.
+- This encourages designing systems that *do* admit reference implementations and properties, e.g. modelling the system as an explicit state machine.
 - Search for edge cases. Don't hand-craft inputs triggering branches unless it's really obvious or you already have the motivating example. Write a predicate, generate until you find matches. You have compute.
 - Compute over cognition. "What input triggers condition X?" Reason, but also search. "What parameters make this converge?" Derive, but also systematically sweep. Automated search saves effort.
 - Use tracing liberally. Knowing for certain what the program did is better than guessing. You can generate lots of telemetry in debug mode that's entirely compiled out of release mode.
-- Write the failing test, then fix the bug. Don't think about whether test captures bug; use the computer to *verify* it does.
+- When fixing a bug, always write the failing test, observe it fail, then fix the bug. Don't think about whether test captures bug; use the computer to *verify* it does.
 
 ---
 
@@ -75,3 +76,4 @@ These are about how you should work, given the above:
 - **If the type system fights you, the design may be wrong.** Step back before reaching for casts, reflection, or `obj`.
 - **When uncertain, ask.** Don't produce 200 lines in the wrong direction. A quick question is cheaper.
 - **Derive from principles, don't pattern-match on practices.** If you encounter a novel situation, reason from (1)–(4). Don't cargo-cult. Time spent getting the primitive design right is never wasted.
+- **Always write the tests first.** Comprehensive property-based tests are a massive force multiplier: when fixing a bug or implementing a feature, write the tests that assert all the desired properties. Do this before implementing: write and observe the failing test before fixing the bug; write the tests that exercise the API before implementing the feature. Be very sceptical of changes to the tests: think very carefully before editing tests.
