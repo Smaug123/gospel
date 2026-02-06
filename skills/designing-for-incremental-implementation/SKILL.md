@@ -56,11 +56,19 @@ Each stage in the IMPLEMENTATION_PLAN.md should specify:
 
 3. **Correctness oracle**: How we verify completion, with concrete properties where applicable.
 
+## Overall Instructions
+
+Start the plan with this text:
+
+> Implement this plan with each stage on its own branch, stacked as necessary on previous branches, so that a reviewer can review each branch in isolation.
+
 ## Example
 
 Given a DESIGN.md describing a caching layer, here is a viable IMPLEMENTATION_PLAN.md:
 
 ```
+Implement this plan with each stage on its own branch, stacked as necessary on previous branches, so that a reviewer can review each branch in isolation.
+
 ## Stage 1: Cache interface and in-memory stub
 
 **Dependencies**: None
