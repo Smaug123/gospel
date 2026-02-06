@@ -74,25 +74,44 @@ Degraded operation is fine when you can characterize its correctness. A cache mi
 
 ---
 
-## Derived Practices
+## Case studies
 
-These don't introduce new principles; they're instantiations of the above.
+Examples of reasoning about new situations from the above.
 
-### Performance consciousness (from 1 + 3)
+### Example: performance consciousness
 
-Not premature optimisation, but not closing doors. Ask: "could this be made fast in principle?" If the API forces allocation in a hot path, the design may be wrong. O(n²) when O(n) is obvious is just sloppy. *Measure, don't guess*—you can run benchmarks (principle 4).
+Local reasoning and orthogonality (principles 1 and 3) mean you should write code such that performance can be adjusted later without rippling changes. If an API forces allocation in a hot path, or couples callers to an O(n²) algorithm when O(n) is possible, the *design* is constraining future optimisation—that's a structural problem, not a premature-optimisation concern.
 
-### Boundaries enforce constraints (from 1 + 2 + 3)
+But no speculative generality (principle 3) means you shouldn't hyper-optimise now for hypothetical future load. Write the clean version first.
 
-Every boundary—module, serialisation, deployment—should enforce a constraint you actually care about, and the mechanism should match the constraint.
+Leverage compute (principle 4) resolves the tension: benchmark before optimising. Don't guess where the time goes—measure. You have a profiler; use it. Optimise what the data says matters.
 
-Type-system module boundaries enforce type contracts at compile time. A module boundary should correspond to a contract the type system can express; if you can't state the interface as types that enforce the invariants, the boundary may be in the wrong place. Split when local reasoning demands it—when a module exceeds what you can hold in your head while reading any one function.
+### Example: When should I introduce a boundary?
 
-Serialisation and IPC boundaries enforce decoupling. This is valuable when you *intend* consumers to vary independently—Pulumi's language-agnostic model earns its IPC boundary because the flexibility is the point. But don't pay the cost for flexibility you never exercise. Microservices-by-default is speculative generality applied to deployment topology.
+Boundaries—module, serialisation, deployment—can enforce constraints mechanically (principle 2) and aid local reasoning by limiting what you must hold in your head (principle 1). But introducing a boundary speculatively is itself a form of speculative generality (principle 3). How do you decide?
 
-Deployment boundaries enforce backward compatibility: independently-deployed components race to deploy, so cross-component changes *must* be compatible. Make the code layout reflect this—separate repos or clear module boundaries for separately-deployed units—so the constraint is expressed by structure, not discipline. Deployment topology should influence code topology precisely because deployment boundaries enforce real constraints.
+**The framework:** A boundary is justified when the constraint it enforces is worth more than the cost of the boundary itself. Both sides of this inequality require empirical input.
 
-Introduce only those boundaries whose constraints help you. Every boundary has a cost; it's only justified if it's enforcing something you actually want enforced.
+**Empirical input 1: What does the boundary cost?**
+
+- *Type-system module boundaries* are cheap. The compiler checks the interface; there's no runtime overhead; refactoring across the boundary is mechanical. Cost ≈ the cognitive overhead of one more named thing.
+- *Serialisation/IPC boundaries* are expensive. You pay marshalling overhead, lose type safety at the wire, must version the protocol, and can't refactor across the boundary without coordinating. Cost ≈ ongoing maintenance burden.
+- *Deployment boundaries* are very expensive. Independently-deployed components must maintain backward compatibility, need separate CI/CD, and failures become partial. Cost ≈ distributed systems complexity.
+
+**Empirical input 2: What constraint does the boundary enforce, and do I want it?**
+
+- "These two things shouldn't know each other's internals" — almost always wanted, but a module boundary suffices.
+- "These two things should be deployable independently" — only valuable if you actually deploy them independently. If you don't, you're paying for a constraint you never exercise.
+- "Consumers in other languages need access" — IPC boundary earns its keep (e.g., Pulumi's language-agnostic model).
+
+**Applying the framework:**
+
+Given typical costs, the reasoning usually goes:
+- Module boundaries: low bar. Split when local reasoning demands it—when a module exceeds what you can hold in your head while reading any one function.
+- Serialisation boundaries: need justification. Are there actual consumers that vary independently? If not, it's speculative generality.
+- Deployment boundaries: need strong justification. Do you have evidence you'll deploy these on different cadences? If not, you're buying distributed-systems problems for nothing.
+
+Different cost observations would yield different conclusions. In an environment where serialisation is nearly free (say, a language with automatic derivation and schema evolution), the bar for IPC boundaries lowers. In a monorepo with atomic deploys, deployment boundaries cost less. Plug in your actual costs.
 
 ---
 
