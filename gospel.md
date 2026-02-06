@@ -78,7 +78,21 @@ Degraded operation is fine when you can characterize its correctness. A cache mi
 
 These don't introduce new principles; they're instantiations of the above.
 
-**Performance consciousness** (from 1 + 3): Not premature optimisation, but not closing doors. Ask: "could this be made fast in principle?" If the API forces allocation in a hot path, the design may be wrong. O(n²) when O(n) is obvious is just sloppy. *Measure, don't guess*—you can run benchmarks (principle 4).
+### Performance consciousness (from 1 + 3)
+
+Not premature optimisation, but not closing doors. Ask: "could this be made fast in principle?" If the API forces allocation in a hot path, the design may be wrong. O(n²) when O(n) is obvious is just sloppy. *Measure, don't guess*—you can run benchmarks (principle 4).
+
+### Boundaries enforce constraints (from 1 + 2 + 3)
+
+Every boundary—module, serialisation, deployment—should enforce a constraint you actually care about, and the mechanism should match the constraint.
+
+Type-system module boundaries enforce type contracts at compile time. A module boundary should correspond to a contract the type system can express; if you can't state the interface as types that enforce the invariants, the boundary may be in the wrong place. Split when local reasoning demands it—when a module exceeds what you can hold in your head while reading any one function.
+
+Serialisation and IPC boundaries enforce decoupling. This is valuable when you *intend* consumers to vary independently—Pulumi's language-agnostic model earns its IPC boundary because the flexibility is the point. But don't pay the cost for flexibility you never exercise. Microservices-by-default is speculative generality applied to deployment topology.
+
+Deployment boundaries enforce backward compatibility: independently-deployed components race to deploy, so cross-component changes *must* be compatible. Make the code layout reflect this—separate repos or clear module boundaries for separately-deployed units—so the constraint is expressed by structure, not discipline. Deployment topology should influence code topology precisely because deployment boundaries enforce real constraints.
+
+Introduce only those boundaries whose constraints help you. Every boundary has a cost; it's only justified if it's enforcing something you actually want enforced.
 
 ---
 
