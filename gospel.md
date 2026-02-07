@@ -141,6 +141,26 @@ When you do need concurrency, bound it (principle 5). An unbounded `Task.WhenAll
 
 Following this reasoning to its conclusion: if each component should avoid internal concurrency, but the system has multiple independent concerns, each concern gets its own serialised work queue. Messages arrive in a bounded channel; the component processes them one at a time; it communicates with other components by sending messages to their channels. This is the actor model—not adopted as a pattern to copy, but derived from the principles. Concurrency exists *between* actors (they run independently) but not *within* them (each processes messages serially). Local reasoning is preserved inside each actor. The bounded mailbox provides backpressure and characterisable resource usage.
 
+### Example: migrations and deletion
+
+A half-migrated system is one where two versions of the truth coexist: the old design and the new design, both partially alive. Every change to the system must now consider both states—and if you have N incomplete migrations in flight, the effective state space is combinatorial. This directly erodes local reasoning (principle 1): you can't understand a component without knowing which migration state it's in. It also resists orthogonality (principle 3): the old and new paths overlap, so the system has more surface area than capability.
+
+**Therefore: complete your migrations.** A half-finished migration is a tax on every future change. Prioritise finishing it over starting new work, because the longer it lingers, the more code accumulates that must account for both states.
+
+**Delete aggressively.** Dead code, vestigial paths, and unused abstractions are anti-orthogonal: they expand what you must read without expanding what the system does. They resist local reasoning because you can't tell from the code alone whether a path is dead or alive. The bug-free code is the code that doesn't exist. When in doubt about whether something is still needed, the answer is usually to delete it—version control remembers.
+
+**Migration strategy follows from local reasoning.** Prefer whichever approach minimises the time and scope during which two versions of the truth coexist:
+
+1. *Stop the world.* If you can take the system down, migrate atomically, and bring it back up, do that. The half-migrated state has zero duration. This is the easiest to reason about locally.
+2. *Isolate and restart.* If the system can't go down entirely, take the migrating component down in isolation while maintaining a stable boundary for its dependents. This is the concurrency case study's "design for resurrection" applied to migration: components that are cheap to kill and restart are cheap to migrate.
+3. *Compatibility shim at the boundary.* When neither of the above is possible, introduce a translation layer at the component's boundary that accepts both old and new inputs and normalises to the current internal representation. The interior only ever sees the latest version. This is "parse, don't validate" (principle 2) applied to versioning.
+
+**Who controls the inputs determines when you can delete.** If you control the consumers—they're your other components, your other teams—migrate them promptly, then delete the old path. The cost of the migration is internal and bounded.
+
+If you don't control the consumers—they're external users, third-party integrations, published APIs—then inputs that were once legal must remain legal. This is principle 5 applied to boundaries: rejecting previously-valid input is a correctness violation from the consumer's perspective. Here a v1→v2→v3 migration chain at the edge is appropriate. Each step is small; the chain is a sequence of parsers that normalise any historical format into the current internal representation. The interior stays clean; the edge absorbs history.
+
+Even these chains aren't sacred. If the cost of maintaining a compatibility step exceeds the cost of dropping it—because it's blocking an important internal change, or because the old format has no remaining consumers you can find—then weigh deletion. But the default for external contracts is retention, because the cost of breakage is borne by others and is hard to observe.
+
 ---
 
 ## Advice for coding agents
