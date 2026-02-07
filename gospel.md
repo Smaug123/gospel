@@ -16,6 +16,8 @@ You should be able to understand what code does by looking at it, without tracin
 - No framework brain. Frameworks invert control: you write hooks, the framework calls them. This makes control flow non-local. Most code is not a framework and shouldn't be structured like one.
 - No magic. Reflection, implicit conversions, runtime code generation—these make behaviour invisible at the point of use.
 - Explicit over implicit, always.
+- Error results over exceptions unless necessary, e.g. when interfacing with a framework or stdlib that was built to require exceptions. Exceptions are highly nonlocal dynamic `goto` statements.
+- Immutable over mutable, except perhaps in tightly-constrained temporary local scopes. Global mutable state may change for nonlocal reasons. Even *spatially local* mutable state has temporally nonlocal impact if it's long-lived.
 
 ### 2. Have the Machine Enforce Invariants
 
@@ -86,7 +88,7 @@ But no speculative generality (principle 3) means you shouldn't hyper-optimise n
 
 Leverage compute (principle 4) resolves the tension: benchmark before optimising. Don't guess where the time goes—measure. You have a profiler; use it. Optimise what the data says matters.
 
-### Example: When should I introduce a boundary?
+### Example: when should I introduce a boundary?
 
 Boundaries—module, serialisation, deployment—can enforce constraints mechanically (principle 2) and aid local reasoning by limiting what you must hold in your head (principle 1). But introducing a boundary speculatively is itself a form of speculative generality (principle 3). How do you decide?
 
@@ -112,6 +114,32 @@ Given typical costs, the reasoning usually goes:
 - Deployment boundaries: need strong justification. Do you have evidence you'll deploy these on different cadences? If not, you're buying distributed-systems problems for nothing.
 
 Different cost observations would yield different conclusions. In an environment where serialisation is nearly free (say, a language with automatic derivation and schema evolution), the bar for IPC boundaries lowers. In a monorepo with atomic deploys, deployment boundaries cost less. Plug in your actual costs.
+
+### Example: data descriptions over behavioral abstractions
+
+When modelling a set of operations—commands, events, effects—should you represent them as data (a discriminated union you later interpret) or as behaviour (objects/closures that execute themselves)?
+
+Local reasoning (principle 1) gives the strongest signal. A DU is inspectable at the point of use: you can see every variant, read the fields, and the compiler checks exhaustive handling. A closure or strategy object is opaque—`Func<Request, Response>` tells you nothing about what it will do. An `ICommand` with an `Execute` method could do anything; a `Command` DU with variants like `CreateUser of name * email` tells you exactly what it describes. The call site that *constructs* the description is readable; the call site that *interprets* it is a match expression with every case visible.
+
+Machine-enforced invariants (principle 2) reinforce this. You can pattern match on a data description and assert structural properties: "no `Delete` command should appear before `Create` for the same entity." You can write exhaustive matches and the compiler catches missing cases. With closures, the type system sees only the signature—intent is invisible, and you can't write a debug assert that inspects what a closure *will do*.
+
+Small orthogonal core (principle 3) applies directly. A DU's constructors *are* the primitive operations. You can enumerate them, specify their laws, and verify that they compose. This is exactly the "small set of primitives whose interactions are fully specifiable" aspiration. Behavioural abstractions hide the operation set behind a polymorphic interface—you can't enumerate what implementations exist or how they interact.
+
+Leverage compute (principle 4) seals it. Data descriptions are property-testable: "for all valid command sequences, the interpreter preserves invariant P" is a clean property. You can generate arbitrary descriptions, serialise them for tracing, replay them for debugging. Opaque behaviour resists all of this.
+
+The pattern this reasoning produces is the interpreter pattern: construct an inert data structure describing *what* to do, then write a separate function that *does* it. This is what principle 1 already gestures at ("compute a description of what to do, then do it") in the context of dependency rejection, but the principle is broader. Whenever you reach for a strategy object, a visitor, a command pattern with an `Execute` method, or a closure passed as a parameter—ask whether a DU + match expression would be simpler. Usually it is: more inspectable, more testable, and the compiler helps more.
+
+The exception is when the operation set is genuinely open—when third parties must add new variants without modifying the core. This is the expression problem, and it's real. But it's rarer than it appears. Most systems have a closed set of operations known at compile time, and reaching for open extension "just in case" is speculative generality.
+
+### Example: concurrency models
+
+Concurrency destroys local reasoning (principle 1). When two threads share mutable state, understanding one requires understanding all others that might touch that state—plus the interleaving. Locks recover mutual exclusion but not local reasoning: you must still trace which locks protect which state, and deadlock potential is a global property of the lock graph.
+
+So the first question is: do you need concurrency at all? Introducing parallelism "because the system might need throughput" is speculative generality (principle 3). Measure first (principle 4). Many systems that feel concurrent—handling web requests, processing event streams—don't require concurrency *within* a component. A single-threaded event loop can saturate a network link.
+
+When you do need concurrency, bound it (principle 5). An unbounded `Task.WhenAll` over an unbounded collection means you can't state what the system does under load—memory, connections, CPU all become uncharacterisable. A bounded worker pool pulling from a bounded channel is the concurrency equivalent of "bound uncertainty": you can state the maximum resource consumption, the maximum queue depth, the backpressure behaviour.
+
+Following this reasoning to its conclusion: if each component should avoid internal concurrency, but the system has multiple independent concerns, each concern gets its own serialised work queue. Messages arrive in a bounded channel; the component processes them one at a time; it communicates with other components by sending messages to their channels. This is the actor model—not adopted as a pattern to copy, but derived from the principles. Concurrency exists *between* actors (they run independently) but not *within* them (each processes messages serially). Local reasoning is preserved inside each actor. The bounded mailbox provides backpressure and characterisable resource usage.
 
 ---
 
