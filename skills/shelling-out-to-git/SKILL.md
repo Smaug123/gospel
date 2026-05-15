@@ -10,7 +10,7 @@ It's hard to shell out to Git securely, so it's important to think carefully whe
 Git reads `.git/config` from the local directory, so you need to know that that file doesn't exist/isn't malicious.
 (For example, `git clone` with CWD set to an arbitrary attacker-controlled directory is unsafe if `.git/config` might already exist.)
 
-Set `GIT_CONFIG_NOSYSTEM=1`, and set `HOME=/dev/null`, to prevent loading system/user config.
+Set `GIT_CONFIG_NOSYSTEM=1`, `GIT_CONFIG_GLOBAL=/dev/null` and `GIT_CONFIG_COUNT=0`, and set `HOME=/dev/null`, to prevent loading system/user config.
 
 ## Clone/fetch targets
 
@@ -20,8 +20,10 @@ Default to only accepting `http` and `https` schemes unless you have evidence th
 
 ## Environment
 
-Always carefully control the environment of the Git process we're creating, and default to completely stripping it.
+Always carefully control the environment of the Git process we're creating, and default to completely stripping it and also running from `/` to ensure we're not already in a Git repo when running.
 Otherwise, e.g. if the user has set a custom Git config file path, important assumptions we make about Git's behaviour might break.
+
+(Resolve `git` from `$PATH` *before* clearing the environment.)
 
 ## Credentials
 
@@ -40,3 +42,31 @@ git \
 
 * It's important to clear `credential.helper` first, because otherwise they stack.
 * Adjust to pass in the correct username as appropriate (a GitHub PAT will work in both fields, if the remote is GitHub).
+
+## `git` binary lifecycle
+
+Make sure `git` has quit within some bounded scope.
+(For example, if in Rust, `tokio::process::Command` needs `kill_on_drop(true)`.)
+
+## Repo identification
+
+Git permits `-C <path>`, but this will locate a `.git` directory that's been planted in `<path>` even if you intended `<path>` to be bare.
+Use `--git-dir <path>` instead.
+
+## Bare repo identification
+
+*All* of the following need to be true for the repo to be definitely a bare repo confined to that directory:
+
+* `HEAD` exists
+* `core.bare` is configured `true`
+* there are no symlinked `objects/` or `refs/` directories
+* `extensions.objectformat` is not configured to `sha256`
+* there's no `commondir` (linked worktree gitdir)
+
+Remember also that Git config has last-wins semantics: a first-match parser is wrong.
+
+## Git notes footguns
+
+* The default `-F` runs `stripspace` and silently mutates the bytes written. You should instead use `--no-stripspace --allow-empty` unless you have some reason to use the default.
+* Git note creation is not atomic. Concurrent writers against the same note will silently lose writes, because registering a Git note is simply force-replacing a commit, and there's no `--force-with-lease`-equivalent-style flag to ensure you are replacing what you thought you were replacing. This is frankly incredible. You need to plan around this.
+* Creating a Git note creates a commit, so it requires `GIT_AUTHOR_*` and `GIT_COMMITTER_*` to be set.
